@@ -1,29 +1,15 @@
 #include "EventListener.h"
+#include "WindowsEventListener.h"
 
-#include <chrono>
+#include <functional>
 
-EventListener::EventListener()
-{
-    stop_ = false;
-    thread_ = std::thread([this]() { work(); });
-}
-
-EventListener::~EventListener()
-{
-    stop_ = true;
-    if (thread_.joinable())
-    {
-        thread_.join();
-    }
-}
-
-void EventListener::registerObserver(EventListener::event_observer observer)
+void IEventListener::registerObserver(IEventListener::event_observer observer)
 {
     std::unique_lock<std::mutex> lock(observers_mutex_);
     event_observers_.push_back(observer);
 }
 
-void EventListener::publish(const std::string& event) const
+void IEventListener::publish(const std::string& event) const
 {
     std::unique_lock<std::mutex> lock(observers_mutex_);
     for (const auto& observer : event_observers_)
@@ -32,11 +18,7 @@ void EventListener::publish(const std::string& event) const
     }
 }
 
-void EventListener::work() const
+std::unique_ptr<IEventListener> makeEventListener()
 {
-    while (!stop_)
-    {
-        publish("This is a message");
-        std::this_thread::sleep_for(std::chrono::seconds(2));
-    }
+    return std::make_unique<WindowsEventListener>();
 }

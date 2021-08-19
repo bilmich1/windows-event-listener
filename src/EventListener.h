@@ -7,23 +7,19 @@
 #include <thread>
 #include <atomic>
 
-class EventListener
+class IEventListener
 {
 public:
     using event_observer = std::function<void(const std::string&)>;
 
-    EventListener();
-    ~EventListener();
-
     void registerObserver(event_observer observer);
 
-private:
+protected:
     void publish(const std::string& event) const;
 
+private:
     mutable std::mutex observers_mutex_;
     std::vector<event_observer> event_observers_;
-
-    std::thread thread_;
-    std::atomic_bool stop_;
-    void work() const;
 };
+
+std::unique_ptr<IEventListener> makeEventListener();

@@ -8,8 +8,8 @@ int main(int argc, char* argv[])
 {
     std::cout << "Windows Event Listener\n\n";
 
-    EventListener event_listener;
-    event_listener.registerObserver([](const std::string& event) {std::cout << "\n*** EVENT BEGIN ***\n" << event << "\n*** EVENT END ***\n"; });
+    auto event_listener = makeEventListener();
+    event_listener->registerObserver([](const std::string& event) {std::cout << "\n*** EVENT BEGIN ***\n" << event << "\n*** EVENT END ***\n"; });
 
     do
     {
