@@ -2,6 +2,9 @@
 
 #include <sstream>
 
+// Link with the event lib
+#pragma comment(lib, "wevtapi.lib")
+
 DWORD WINAPI WindowsEventListenerCallback(EVT_SUBSCRIBE_NOTIFY_ACTION action, PVOID pContext, EVT_HANDLE hEvent)
 {
     auto* event_listener = reinterpret_cast<WindowsEventListener*>(pContext);
