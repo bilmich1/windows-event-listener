@@ -11,6 +11,8 @@ public:
     WindowsEventListener();
     ~WindowsEventListener();
 
+    void start() override;
+
     DWORD callbackImpl(EVT_SUBSCRIBE_NOTIFY_ACTION action, EVT_HANDLE event_handle);
 
 private:

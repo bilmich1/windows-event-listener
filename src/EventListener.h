@@ -14,6 +14,8 @@ public:
 
     void registerObserver(event_observer observer);
 
+    virtual void start() = 0;
+
 protected:
     void publish(const std::string& event) const;
 

@@ -11,6 +11,8 @@ int main(int argc, char* argv[])
     auto event_listener = makeEventListener();
     event_listener->registerObserver([](const std::string& event) {std::cout << "\n*** EVENT BEGIN ***\n" << event << "\n*** EVENT END ***\n"; });
 
+    event_listener->start();
+
     do
     {
         std::cout << '\n' << "Press a key to continue...";
