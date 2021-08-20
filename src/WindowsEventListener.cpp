@@ -5,10 +5,21 @@
 // Link with the event lib
 #pragma comment(lib, "wevtapi.lib")
 
-DWORD WINAPI WindowsEventListenerCallback(EVT_SUBSCRIBE_NOTIFY_ACTION action, PVOID pContext, EVT_HANDLE hEvent)
+DWORD WINAPI eventListenerCallback(EVT_SUBSCRIBE_NOTIFY_ACTION action, PVOID context, EVT_HANDLE event_handle)
 {
-    auto* event_listener = reinterpret_cast<WindowsEventListener*>(pContext);
-    return event_listener->callbackImpl(action, hEvent);
+    auto* event_listener = reinterpret_cast<WindowsEventListener*>(context);
+    return event_listener->callbackImpl(action, event_handle);
+}
+
+struct EventMessage
+{
+    DWORD status_ = ERROR_SUCCESS;
+    std::string message_;
+};
+
+EventMessage getEventMessage(EVT_HANDLE event_handle)
+{
+    return { ERROR_SUCCESS, "EventMessage" };
 }
 
 WindowsEventListener::WindowsEventListener()
@@ -29,7 +40,7 @@ WindowsEventListener::WindowsEventListener()
         xpath_query,
         bookmark,
         context,
-        WindowsEventListenerCallback,
+        eventListenerCallback,
         EvtSubscribeStartAtOldestRecord);
 
     if (event_handle_ == nullptr)
@@ -68,9 +79,51 @@ WindowsEventListener::~WindowsEventListener()
     cleanup();
 }
 
-DWORD WindowsEventListener::callbackImpl(EVT_SUBSCRIBE_NOTIFY_ACTION action, EVT_HANDLE hEvent)
+DWORD WindowsEventListener::callbackImpl(EVT_SUBSCRIBE_NOTIFY_ACTION action, EVT_HANDLE event_handle)
 {
-    return 0;
+    DWORD status = ERROR_SUCCESS;
+
+    std::stringstream message_stream;
+
+    switch (action)
+    {
+        // You should only get the EvtSubscribeActionError action if your subscription flags 
+        // includes EvtSubscribeStrict and the channel contains missing event records.
+    case EvtSubscribeActionError:
+    {
+        if (ERROR_EVT_QUERY_RESULT_STALE == (DWORD)event_handle)
+        {
+            message_stream << "The subscription callback was notified that event records are missing.\n";
+            // Handle if this is an issue for your application.
+        }
+        else
+        {
+            message_stream << "The subscription callback received the following Win32 error: " << (DWORD)event_handle << "\n";
+        }
+        break;
+    }
+    case EvtSubscribeActionDeliver:
+    {
+        const auto event_message = getEventMessage(event_handle);
+        status = event_message.status_;
+        message_stream << event_message.message_;
+        break;
+    }
+    default:
+    {
+        message_stream << "SubscriptionCallback: Unknown action.\n";
+    }
+    }
+
+    publish(message_stream.str());
+
+    if (ERROR_SUCCESS != status)
+    {
+
+        cleanup();
+    }
+
+    return status;
 }
 
 void WindowsEventListener::cleanup()
