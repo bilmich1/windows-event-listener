@@ -22,6 +22,7 @@ public:
 
 private:
     void cleanup();
+    void saveBookmark();
 
     const std::wstring channel_;
     const std::wstring xpath_query_;

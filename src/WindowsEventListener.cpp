@@ -1,8 +1,11 @@
 #include "WindowsEventListener.h"
 
-#include <stringapiset.h>
+#include <algorithm>
+#include <iterator>
 #include <sstream>
+#include <fstream>
 
+#include <stringapiset.h>
 // Link with the event lib
 #pragma comment(lib, "wevtapi.lib")
 
@@ -81,7 +84,7 @@ EventMessage getEventMessage(EVT_HANDLE event_handle)
         status = GetLastError();
         if (ERROR_SUCCESS != status)
         {
-            message_stream << "EvtRender failed with " << status;
+            message_stream << "getEventMessage::EvtRender failed with " << status;
         }
     }
 
@@ -106,17 +109,38 @@ void WindowsEventListener::start()
 {
     constexpr EVT_HANDLE local_computer = nullptr;
     constexpr HANDLE null_signal_event_because_using_callback = nullptr;
-    constexpr EVT_HANDLE bookmark = nullptr;
     PVOID context = reinterpret_cast<PVOID>(this);
+
+    if (bookmark_path_.has_value())
+    {
+        if (std::filesystem::exists(*bookmark_path_))
+        {
+            std::wifstream file(*bookmark_path_);
+            std::wstring bookmark_content;
+
+            file.seekg(0, std::ios::end);
+            bookmark_content.reserve(file.tellg());
+            file.seekg(0, std::ios::beg);
+
+            bookmark_content.assign((std::istreambuf_iterator<wchar_t>(file)), std::istreambuf_iterator<wchar_t>());
+
+            boomark_handle_ = EvtCreateBookmark(bookmark_content.c_str());
+        }
+        else
+        {
+            constexpr LPCWSTR create_new_bookmark = nullptr;
+            boomark_handle_ = EvtCreateBookmark(create_new_bookmark);
+        }
+    }
 
     event_handle_ = EvtSubscribe(local_computer,
         null_signal_event_because_using_callback,
         channel_.c_str(),
         xpath_query_.c_str(),
-        bookmark,
+        boomark_handle_,
         context,
         eventListenerCallback,
-        EvtSubscribeStartAtOldestRecord);
+        nullptr == boomark_handle_ ? EvtSubscribeStartAtOldestRecord : EvtSubscribeStartAfterBookmark);
 
     if (event_handle_ == nullptr)
     {
@@ -175,6 +199,11 @@ DWORD WindowsEventListener::callbackImpl(EVT_SUBSCRIBE_NOTIFY_ACTION action, EVT
     }
     case EvtSubscribeActionDeliver:
     {
+        if (nullptr != boomark_handle_)
+        {
+            EvtUpdateBookmark(boomark_handle_, event_handle);
+        }
+
         const auto event_message = getEventMessage(event_handle);
         status = event_message.status_;
         message_stream << event_message.message_;
@@ -199,9 +228,58 @@ DWORD WindowsEventListener::callbackImpl(EVT_SUBSCRIBE_NOTIFY_ACTION action, EVT
 
 void WindowsEventListener::cleanup()
 {
+    saveBookmark();
+
+    if (boomark_handle_ != nullptr)
+    {
+        EvtClose(boomark_handle_);
+        boomark_handle_ = nullptr;
+    }
+
     if (event_handle_ != nullptr)
     {
         EvtClose(event_handle_);
         event_handle_ = nullptr;
+    }
+}
+
+void WindowsEventListener::saveBookmark()
+{
+    if (bookmark_path_.has_value() && nullptr != boomark_handle_)
+    {
+        constexpr EVT_HANDLE context = nullptr;
+        constexpr PVOID get_required_buffer_size = nullptr;
+        DWORD unused_property_count = 0;
+
+        DWORD status = ERROR_SUCCESS;
+        DWORD buffer_size = 0;
+        DWORD buffer_used = 0;
+
+
+        if (!EvtRender(context, boomark_handle_, EvtRenderBookmark, buffer_size, get_required_buffer_size, &buffer_used, &unused_property_count))
+        {
+            status = GetLastError();
+            if (ERROR_INSUFFICIENT_BUFFER == status)
+            {
+                buffer_size = buffer_used;
+                std::vector<WCHAR> message_content(buffer_size);
+                
+                EvtRender(context, boomark_handle_, EvtRenderBookmark, buffer_size, message_content.data(), &buffer_used, &unused_property_count);
+                status = GetLastError();
+                if (ERROR_SUCCESS != status)
+                {
+                    std::stringstream message_stream;
+                    message_stream << "saveBookmark::EvtRender failed with " << status;
+                    publish(message_stream.str());
+                }
+
+                std::wofstream file(*bookmark_path_, std::ios_base::out | std::ios_base::trunc);
+                auto state = file.rdstate();
+                for (auto i = message_content.begin(); i != message_content.end() && *i != 0; ++i)
+                {
+                    file << *i;
+                }
+            }
+        }
     }
 }
