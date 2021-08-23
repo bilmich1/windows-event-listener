@@ -11,8 +11,7 @@
 class WindowsEventListener : public IEventListener
 {
 public:
-    WindowsEventListener(const std::wstring& channel,
-        const std::wstring& xpath_query,
+    WindowsEventListener(const std::filesystem::path& query_path,
         const std::optional<std::filesystem::path>& bookmark_path);
     ~WindowsEventListener() override;
 
@@ -24,8 +23,7 @@ private:
     void cleanup();
     void saveBookmark();
 
-    const std::wstring channel_;
-    const std::wstring xpath_query_;
+    const std::filesystem::path query_path_;
     const std::optional<std::filesystem::path> bookmark_path_;
 
     EVT_HANDLE event_handle_ = nullptr;

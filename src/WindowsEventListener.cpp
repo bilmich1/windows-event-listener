@@ -91,13 +91,30 @@ EventMessage getEventMessage(EVT_HANDLE event_handle)
     return { status, message_stream.str() };
 }
 
-WindowsEventListener::WindowsEventListener(const std::wstring& channel,
-    const std::wstring& xpath_query,
+std::wstring readFileContent(const std::filesystem::path& file_path)
+{
+    std::wifstream file(file_path);
+    std::wstring file_content;
+
+    file.seekg(0, std::ios::end);
+    file_content.reserve(file.tellg());
+    file.seekg(0, std::ios::beg);
+
+    file_content.assign((std::istreambuf_iterator<wchar_t>(file)), std::istreambuf_iterator<wchar_t>());
+
+    return file_content;
+}
+
+WindowsEventListener::WindowsEventListener(
+    const std::filesystem::path& query_path,
     const std::optional<std::filesystem::path>& bookmark_path)
-    : channel_(channel)
-    , xpath_query_(xpath_query)
+    : query_path_(query_path)
     , bookmark_path_(bookmark_path)
 {
+    if (!std::filesystem::exists(query_path_))
+    {
+        throw std::runtime_error("query_path doesn't exists");
+    }
 }
 
 WindowsEventListener::~WindowsEventListener()
@@ -109,21 +126,14 @@ void WindowsEventListener::start()
 {
     constexpr EVT_HANDLE local_computer = nullptr;
     constexpr HANDLE null_signal_event_because_using_callback = nullptr;
+    constexpr LPCWSTR unused_channel_name = nullptr;
     PVOID context = reinterpret_cast<PVOID>(this);
 
     if (bookmark_path_.has_value())
     {
         if (std::filesystem::exists(*bookmark_path_))
         {
-            std::wifstream file(*bookmark_path_);
-            std::wstring bookmark_content;
-
-            file.seekg(0, std::ios::end);
-            bookmark_content.reserve(file.tellg());
-            file.seekg(0, std::ios::beg);
-
-            bookmark_content.assign((std::istreambuf_iterator<wchar_t>(file)), std::istreambuf_iterator<wchar_t>());
-
+            const auto bookmark_content = readFileContent(*bookmark_path_);
             boomark_handle_ = EvtCreateBookmark(bookmark_content.c_str());
         }
         else
@@ -133,10 +143,12 @@ void WindowsEventListener::start()
         }
     }
 
+    auto query = readFileContent(query_path_);
+
     event_handle_ = EvtSubscribe(local_computer,
         null_signal_event_because_using_callback,
-        channel_.c_str(),
-        xpath_query_.c_str(),
+        unused_channel_name,
+        query.c_str(),
         boomark_handle_,
         context,
         eventListenerCallback,
@@ -263,7 +275,7 @@ void WindowsEventListener::saveBookmark()
             {
                 buffer_size = buffer_used;
                 std::vector<WCHAR> message_content(buffer_size);
-                
+
                 EvtRender(context, boomark_handle_, EvtRenderBookmark, buffer_size, message_content.data(), &buffer_used, &unused_property_count);
                 status = GetLastError();
                 if (ERROR_SUCCESS != status)

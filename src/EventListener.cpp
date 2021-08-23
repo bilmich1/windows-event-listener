@@ -20,9 +20,8 @@ void IEventListener::publish(const std::string& event) const
 
 std::unique_ptr<IEventListener> makeEventListener()
 {
-    const std::wstring channel = L"Application";
-    const std::wstring xpath_query = L"*[System[(Level <= 3) and TimeCreated[timediff(@SystemTime) <= 86400000]]]";
-    const std::filesystem::path bookmark_path = "C:\\_Projet\\windows-event-listener\\out\\bookmark.xml";
+    const std::filesystem::path query_path = "C:\\_Projet\\windows-event-listener\\out\\Query.xml";
+    const std::filesystem::path bookmark_path = "C:\\_Projet\\windows-event-listener\\out\\Bookmark.xml";
 
-    return std::make_unique<WindowsEventListener>(channel, xpath_query, bookmark_path);
+    return std::make_unique<WindowsEventListener>(query_path, bookmark_path);
 }
