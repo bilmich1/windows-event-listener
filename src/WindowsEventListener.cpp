@@ -18,7 +18,7 @@ struct EventMessage
     std::string message_;
 };
 
-std::string toString(const std::vector<TCHAR>& wide_string_data)
+std::string toString(const std::vector<WCHAR>& wide_string_data)
 {
     constexpr UINT default_code_page = CP_ACP;
     constexpr DWORD flags = 0;
@@ -28,11 +28,9 @@ std::string toString(const std::vector<TCHAR>& wide_string_data)
     constexpr LPCCH use_default_char = nullptr;
     BOOL has_used_default_char = 0;
 
-    LPCWCH wide_string_ptr = reinterpret_cast<LPCWCH>(wide_string_data.data());
-
     const auto output_size = WideCharToMultiByte(default_code_page,
         flags,
-        wide_string_ptr,
+        wide_string_data.data(),
         null_terminated_string,
         unused_buffer,
         get_buffer_size,
@@ -47,7 +45,7 @@ std::string toString(const std::vector<TCHAR>& wide_string_data)
     std::vector<CHAR> output_buffer(output_size);
     WideCharToMultiByte(default_code_page,
         flags,
-        wide_string_ptr,
+        wide_string_data.data(),
         null_terminated_string,
         output_buffer.data(),
         output_size,
@@ -75,7 +73,7 @@ EventMessage getEventMessage(EVT_HANDLE event_handle)
         if (ERROR_INSUFFICIENT_BUFFER == status)
         {
             buffer_size = buffer_used;
-            std::vector<TCHAR> message_content(buffer_size);
+            std::vector<WCHAR> message_content(buffer_size);
             EvtRender(context, event_handle, EvtRenderEventXml, buffer_size, message_content.data(), &buffer_used, &unused_property_count);
             message_stream << toString(message_content);
         }
@@ -90,7 +88,12 @@ EventMessage getEventMessage(EVT_HANDLE event_handle)
     return { status, message_stream.str() };
 }
 
-WindowsEventListener::WindowsEventListener()
+WindowsEventListener::WindowsEventListener(const std::wstring& channel,
+    const std::wstring& xpath_query,
+    const std::optional<std::filesystem::path>& bookmark_path)
+    : channel_(channel)
+    , xpath_query_(xpath_query)
+    , bookmark_path_(bookmark_path)
 {
 }
 
@@ -101,9 +104,6 @@ WindowsEventListener::~WindowsEventListener()
 
 void WindowsEventListener::start()
 {
-    LPWSTR channel_name = L"Application";
-    LPWSTR xpath_query = L"*[System[(Level <= 3) and TimeCreated[timediff(@SystemTime) <= 86400000]]]";
-
     constexpr EVT_HANDLE local_computer = nullptr;
     constexpr HANDLE null_signal_event_because_using_callback = nullptr;
     constexpr EVT_HANDLE bookmark = nullptr;
@@ -111,8 +111,8 @@ void WindowsEventListener::start()
 
     event_handle_ = EvtSubscribe(local_computer,
         null_signal_event_because_using_callback,
-        channel_name,
-        xpath_query,
+        channel_.c_str(),
+        xpath_query_.c_str(),
         bookmark,
         context,
         eventListenerCallback,
@@ -126,18 +126,18 @@ void WindowsEventListener::start()
 
         if (ERROR_EVT_CHANNEL_NOT_FOUND == status)
         {
-            message_stream << "Channel was not found: " << channel_name;
+            message_stream << "Channel was not found\n";
         }
         else if (ERROR_EVT_INVALID_QUERY == status)
         {
-            message_stream << "Query is not valid: " << xpath_query << "\n";
+            message_stream << "Query is not valid\n";
 
             DWORD buffer_size = 0;
             EvtGetExtendedStatus(0, nullptr, &buffer_size);
-            LPWSTR buffer = new WCHAR[buffer_size];
-            EvtGetExtendedStatus(buffer_size, buffer, &buffer_size);
+            std::vector<WCHAR> buffer(buffer_size);
+            EvtGetExtendedStatus(buffer_size, buffer.data(), &buffer_size);
 
-            message_stream << "details: " << buffer << "\n";
+            message_stream << "details: " << toString(buffer) << "\n";
         }
         else
         {

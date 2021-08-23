@@ -5,11 +5,16 @@
 #include <Windows.h>
 #include <winevt.h>
 
+#include <filesystem>
+#include <optional>
+
 class WindowsEventListener : public IEventListener
 {
 public:
-    WindowsEventListener();
-    ~WindowsEventListener();
+    WindowsEventListener(const std::wstring& channel,
+        const std::wstring& xpath_query,
+        const std::optional<std::filesystem::path>& bookmark_path);
+    ~WindowsEventListener() override;
 
     void start() override;
 
@@ -18,5 +23,10 @@ public:
 private:
     void cleanup();
 
+    const std::wstring channel_;
+    const std::wstring xpath_query_;
+    const std::optional<std::filesystem::path> bookmark_path_;
+
     EVT_HANDLE event_handle_ = nullptr;
+    EVT_HANDLE boomark_handle_ = nullptr;
 };

@@ -12,6 +12,8 @@ class IEventListener
 public:
     using event_observer = std::function<void(const std::string&)>;
 
+    virtual ~IEventListener() = default;
+
     void registerObserver(event_observer observer);
 
     virtual void start() = 0;
