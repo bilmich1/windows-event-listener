@@ -1,16 +1,18 @@
 #pragma once
 
+#include <boost/property_tree/ptree.hpp>
+
 #include <vector>
 #include <functional>
 #include <string>
 #include <mutex>
-#include <thread>
-#include <atomic>
+#include <variant>
 
 class IEventListener
 {
 public:
-    using event_observer = std::function<void(const std::string&)>;
+    using PublishType = std::variant<boost::property_tree::ptree, std::exception_ptr>;
+    using event_observer = std::function<void(const PublishType&)>;
 
     virtual ~IEventListener() = default;
 
@@ -19,7 +21,7 @@ public:
     virtual void start() = 0;
 
 protected:
-    void publish(const std::string& event) const;
+    void publish(const PublishType& event) const;
 
 private:
     mutable std::mutex observers_mutex_;

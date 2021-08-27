@@ -9,7 +9,7 @@ void IEventListener::registerObserver(IEventListener::event_observer observer)
     event_observers_.push_back(observer);
 }
 
-void IEventListener::publish(const std::string& event) const
+void IEventListener::publish(const PublishType& event) const
 {
     std::unique_lock<std::mutex> lock(observers_mutex_);
     for (const auto& observer : event_observers_)

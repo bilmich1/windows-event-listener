@@ -18,12 +18,6 @@ DWORD WINAPI eventListenerCallback(EVT_SUBSCRIBE_NOTIFY_ACTION action, PVOID con
     return event_listener->callbackImpl(action, event_handle);
 }
 
-struct EventMessage
-{
-    DWORD status_ = ERROR_SUCCESS;
-    std::string message_;
-};
-
 std::string toString(const std::vector<WCHAR>& wide_string_data)
 {
     constexpr UINT default_code_page = CP_ACP;
@@ -61,37 +55,45 @@ std::string toString(const std::vector<WCHAR>& wide_string_data)
     return std::string(output_buffer.begin(), output_buffer.end());
 }
 
-EventMessage getEventMessage(EVT_HANDLE event_handle)
+IEventListener::PublishType getEventMessage(EVT_HANDLE event_handle)
 {
     DWORD unused_property_count = 0;
     constexpr EVT_HANDLE context = nullptr;
     constexpr PVOID get_required_buffer_size = nullptr;
 
-    DWORD status = ERROR_SUCCESS;
     DWORD buffer_size = 0;
     DWORD buffer_used = 0;
 
-    std::stringstream message_stream;
-
     if (!EvtRender(context, event_handle, EvtRenderEventXml, buffer_size, get_required_buffer_size, &buffer_used, &unused_property_count))
     {
-        status = GetLastError();
-        if (ERROR_INSUFFICIENT_BUFFER == status)
+        if (auto status = GetLastError(); ERROR_INSUFFICIENT_BUFFER == status)
         {
             buffer_size = buffer_used;
             std::vector<WCHAR> message_content(buffer_size);
             EvtRender(context, event_handle, EvtRenderEventXml, buffer_size, message_content.data(), &buffer_used, &unused_property_count);
-            message_stream << toString(message_content);
-        }
+            if (auto status = GetLastError(); ERROR_SUCCESS != status)
+            {
+                std::stringstream message_stream;
+                message_stream << "saveBookmark::EvtRender failed with " << status;
+                return std::make_exception_ptr(std::runtime_error((message_stream.str())));
+            }
 
-        status = GetLastError();
-        if (ERROR_SUCCESS != status)
-        {
-            message_stream << "getEventMessage::EvtRender failed with " << status;
+            namespace pt = boost::property_tree;
+
+            pt::ptree tree;
+            std::stringstream string_stream;
+            string_stream << toString(message_content);
+
+            pt::read_xml(string_stream, tree);
+            return tree;
         }
     }
 
-    return { status, message_stream.str() };
+    auto status = GetLastError();
+    std::stringstream message_stream;
+    message_stream << "saveBookmark::EvtRender failed with " << status;
+    return std::make_exception_ptr(std::runtime_error((message_stream.str())));
+
 }
 
 std::wstring readFileContent(const std::filesystem::path& file_path)
@@ -182,7 +184,7 @@ void WindowsEventListener::start()
             message_stream << "EvtSubscribe failed with code: " << status << "\n";
         }
 
-        publish(message_stream.str());
+        throw std::runtime_error(message_stream.str());
         cleanup();
     }
 }
@@ -195,8 +197,19 @@ DWORD WindowsEventListener::callbackImpl(EVT_SUBSCRIBE_NOTIFY_ACTION action, EVT
 
     switch (action)
     {
-        // You should only get the EvtSubscribeActionError action if your subscription flags 
-        // includes EvtSubscribeStrict and the channel contains missing event records.
+    case EvtSubscribeActionDeliver:
+    {
+        if (nullptr != boomark_handle_)
+        {
+            EvtUpdateBookmark(boomark_handle_, event_handle);
+        }
+
+        publish(getEventMessage(event_handle));
+        constexpr auto ignored = ERROR_SUCCESS;
+        return ignored;
+    }
+    // You should only get the EvtSubscribeActionError action if your subscription flags 
+    // includes EvtSubscribeStrict and the channel contains missing event records.
     case EvtSubscribeActionError:
     {
         const auto event_code = reinterpret_cast<DWORD_PTR>(event_handle);
@@ -211,33 +224,17 @@ DWORD WindowsEventListener::callbackImpl(EVT_SUBSCRIBE_NOTIFY_ACTION action, EVT
         }
         break;
     }
-    case EvtSubscribeActionDeliver:
-    {
-        if (nullptr != boomark_handle_)
-        {
-            EvtUpdateBookmark(boomark_handle_, event_handle);
-        }
-
-        const auto event_message = getEventMessage(event_handle);
-        status = event_message.status_;
-        message_stream << event_message.message_;
-        break;
-    }
     default:
     {
         message_stream << "SubscriptionCallback: Unknown action.\n";
     }
     }
 
-    publish(message_stream.str());
+    publish(std::make_exception_ptr(std::runtime_error((message_stream.str()))));
+    cleanup();
 
-    if (ERROR_SUCCESS != status)
-    {
-
-        cleanup();
-    }
-
-    return status;
+    constexpr auto ignored = ERROR_SUCCESS;
+    return ignored;
 }
 
 void WindowsEventListener::cleanup()
@@ -272,19 +269,17 @@ void WindowsEventListener::saveBookmark()
 
         if (!EvtRender(context, boomark_handle_, EvtRenderBookmark, buffer_size, get_required_buffer_size, &buffer_used, &unused_property_count))
         {
-            status = GetLastError();
-            if (ERROR_INSUFFICIENT_BUFFER == status)
+            if (status = GetLastError(); ERROR_INSUFFICIENT_BUFFER == status)
             {
                 buffer_size = buffer_used;
                 std::vector<WCHAR> message_content(buffer_size);
 
                 EvtRender(context, boomark_handle_, EvtRenderBookmark, buffer_size, message_content.data(), &buffer_used, &unused_property_count);
-                status = GetLastError();
-                if (ERROR_SUCCESS != status)
+                if (status = GetLastError(); ERROR_SUCCESS != status)
                 {
                     std::stringstream message_stream;
                     message_stream << "saveBookmark::EvtRender failed with " << status;
-                    publish(message_stream.str());
+                    publish(std::make_exception_ptr(std::runtime_error((message_stream.str()))));
                 }
 
                 try
@@ -302,7 +297,7 @@ void WindowsEventListener::saveBookmark()
                 {
                     std::stringstream message_stream;
                     message_stream << "saveBookmark save failed: " << e.what();
-                    publish(message_stream.str());
+                    publish(std::make_exception_ptr(std::runtime_error((message_stream.str()))));
                 }
             }
         }
