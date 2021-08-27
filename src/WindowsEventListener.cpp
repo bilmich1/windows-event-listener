@@ -5,6 +5,9 @@
 #include <sstream>
 #include <fstream>
 
+#include <boost/property_tree/ptree.hpp>
+#include <boost/property_tree/xml_parser.hpp>
+
 #include <stringapiset.h>
 // Link with the event lib
 #pragma comment(lib, "wevtapi.lib")
@@ -93,16 +96,26 @@ EventMessage getEventMessage(EVT_HANDLE event_handle)
 
 std::wstring readFileContent(const std::filesystem::path& file_path)
 {
-    std::wifstream file(file_path);
-    std::wstring file_content;
+    namespace pt = boost::property_tree;
 
-    file.seekg(0, std::ios::end);
-    file_content.reserve(file.tellg());
-    file.seekg(0, std::ios::beg);
+    pt::wptree tree;
+    pt::read_xml(file_path.string(), tree);
 
-    file_content.assign((std::istreambuf_iterator<wchar_t>(file)), std::istreambuf_iterator<wchar_t>());
+    std::wostringstream string_stream;
+    pt::write_xml(string_stream, tree);
 
-    return file_content;
+    return string_stream.str();
+
+    //std::wifstream file(file_path);
+    //std::wstring file_content;
+
+    //file.seekg(0, std::ios::end);
+    //file_content.reserve(file.tellg());
+    //file.seekg(0, std::ios::beg);
+
+    //file_content.assign((std::istreambuf_iterator<wchar_t>(file)), std::istreambuf_iterator<wchar_t>());
+
+    //return file_content;
 }
 
 WindowsEventListener::WindowsEventListener(
@@ -285,12 +298,29 @@ void WindowsEventListener::saveBookmark()
                     publish(message_stream.str());
                 }
 
-                std::wofstream file(*bookmark_path_, std::ios_base::out | std::ios_base::trunc);
+                try
+                {
+                    namespace pt = boost::property_tree;
+
+                    pt::ptree tree;
+                    std::stringstream string_stream;
+                    string_stream << toString(message_content);
+
+                    pt::read_xml(string_stream, tree);
+                    pt::write_xml(bookmark_path_->string(), tree);
+                }
+                catch (const std::exception& e)
+                {
+                    std::stringstream message_stream;
+                    message_stream << "saveBookmark save failed: " << e.what();
+                    publish(message_stream.str());
+                }
+                /*std::wofstream file(*bookmark_path_, std::ios_base::out | std::ios_base::trunc);
                 auto state = file.rdstate();
                 for (auto i = message_content.begin(); i != message_content.end() && *i != 0; ++i)
                 {
                     file << *i;
-                }
+                }*/
             }
         }
     }

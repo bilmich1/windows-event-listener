@@ -5,4 +5,6 @@ set(CMAKE_CXX_STANDARD_REQUIRED True)
 
 project(windows-event-listener)
 
+find_package(Boost REQUIRED COMPONENTS system)
+
 add_subdirectory(src)
