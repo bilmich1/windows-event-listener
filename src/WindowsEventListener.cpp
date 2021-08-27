@@ -105,17 +105,6 @@ std::wstring readFileContent(const std::filesystem::path& file_path)
     pt::write_xml(string_stream, tree);
 
     return string_stream.str();
-
-    //std::wifstream file(file_path);
-    //std::wstring file_content;
-
-    //file.seekg(0, std::ios::end);
-    //file_content.reserve(file.tellg());
-    //file.seekg(0, std::ios::beg);
-
-    //file_content.assign((std::istreambuf_iterator<wchar_t>(file)), std::istreambuf_iterator<wchar_t>());
-
-    //return file_content;
 }
 
 WindowsEventListener::WindowsEventListener(
@@ -315,12 +304,6 @@ void WindowsEventListener::saveBookmark()
                     message_stream << "saveBookmark save failed: " << e.what();
                     publish(message_stream.str());
                 }
-                /*std::wofstream file(*bookmark_path_, std::ios_base::out | std::ios_base::trunc);
-                auto state = file.rdstate();
-                for (auto i = message_content.begin(); i != message_content.end() && *i != 0; ++i)
-                {
-                    file << *i;
-                }*/
             }
         }
     }
