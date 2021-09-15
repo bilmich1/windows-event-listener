@@ -20,6 +20,8 @@ public:
 
     virtual void start() = 0;
 
+    virtual void updateBookmark() = 0;
+
 protected:
     void publish(const PublishType& event) const;
 

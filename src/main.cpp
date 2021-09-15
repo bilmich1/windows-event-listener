@@ -6,7 +6,7 @@
 #include <iostream>
 #include <string>
 
-int main(int argc, char* argv[])
+int main()
 {
     std::cout << "Windows Event Listener\n\n";
 
@@ -37,4 +37,6 @@ int main(int argc, char* argv[])
     {
         std::cout << '\n' << "Press a key to continue...";
     } while (std::cin.get() != '\n');
+
+    event_listener->updateBookmark();
 }

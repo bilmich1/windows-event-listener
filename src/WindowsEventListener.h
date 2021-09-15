@@ -1,12 +1,16 @@
 #pragma once
 
 #include "EventListener.h"
+#include "Details.h"
+#include "Bookmark.h"
 
 #include <Windows.h>
 #include <winevt.h>
 
 #include <filesystem>
 #include <optional>
+
+DWORD WINAPI eventListenerCallback(EVT_SUBSCRIBE_NOTIFY_ACTION action, PVOID context, EVT_HANDLE event_handle);
 
 class WindowsEventListener : public IEventListener
 {
@@ -17,15 +21,18 @@ public:
 
     void start() override;
 
-    DWORD callbackImpl(EVT_SUBSCRIBE_NOTIFY_ACTION action, EVT_HANDLE event_handle);
+    void updateBookmark() override;
 
 private:
-    void cleanup();
-    void saveBookmark();
+    friend DWORD WINAPI eventListenerCallback(
+        EVT_SUBSCRIBE_NOTIFY_ACTION action,
+        PVOID context,
+        EVT_HANDLE event_handle);
+    DWORD callbackImpl(EVT_SUBSCRIBE_NOTIFY_ACTION action, EventHandleUniquePtr event_handle) noexcept;
 
     const std::filesystem::path query_path_;
     const std::optional<std::filesystem::path> bookmark_path_;
 
-    EVT_HANDLE event_handle_ = nullptr;
-    EVT_HANDLE boomark_handle_ = nullptr;
+    std::optional<Bookmark> bookmark_ = std::nullopt;
+    EventHandleUniquePtr subscription_handle_ = nullptr;
 };

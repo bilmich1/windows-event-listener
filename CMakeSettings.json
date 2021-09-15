@@ -11,6 +11,19 @@
             "buildCommandArgs": "",
             "ctestCommandArgs": "",
             "cmakeToolchain": "C:/_Projet/_Software/vcpkg/scripts/buildsystems/vcpkg.cmake"
+        },
+        {
+            "name": "x86-Debug",
+            "generator": "Ninja",
+            "configurationType": "Debug",
+            "buildRoot": "${projectDir}\\out\\build\\${name}",
+            "installRoot": "${projectDir}\\out\\install\\${name}",
+            "cmakeCommandArgs": "",
+            "buildCommandArgs": "",
+            "ctestCommandArgs": "",
+            "inheritEnvironments": [ "msvc_x86" ],
+            "variables": [],
+			"cmakeToolchain": "C:/_Projet/_Software/vcpkg/scripts/buildsystems/vcpkg.cmake"
         }
     ]
 }
